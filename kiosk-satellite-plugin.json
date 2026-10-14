@@ -1,0 +1,233 @@
+{
+  "schemaVersion": 1,
+  "id": "google-photos-screensaver",
+  "name": "Google Photos Screensaver",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "minAndroidSdk": 24,
+  "entryClass": "kiosk.plugins.gphotos.GooglePhotosPlugin",
+  "description": "Shows photos from Google Photos shared albums as a Kiosk Satellite screensaver. Paste a shared album link and choose Google Photos under Screensaver mode. Photos stream in random order with a crossfade, with separate crop settings for horizontal and vertical photos.",
+  "author": "Coffmad",
+  "license": "Apache-2.0",
+  "capabilities": [
+    "screensaver",
+    "host.read"
+  ],
+  "settings": [
+    {
+      "key": "albumLinks",
+      "type": "string",
+      "title": "Shared album link",
+      "default": "",
+      "group": "Album",
+      "description": "In Google Photos, open the album, choose Share > Create link and paste it here, such as https://photos.app.goo.gl/… Separate several links with spaces to mix albums."
+    },
+    {
+      "key": "refreshHours",
+      "type": "number",
+      "title": "Check album for new photos every",
+      "default": 6,
+      "min": 1,
+      "max": 48,
+      "step": 1,
+      "unit": "h",
+      "group": "Album",
+      "description": "How often the album list is downloaded again to pick up added or removed photos."
+    },
+    {
+      "key": "interval",
+      "type": "number",
+      "title": "Time per photo",
+      "default": 30,
+      "min": 5,
+      "max": 600,
+      "step": 5,
+      "unit": "s",
+      "group": "Timing"
+    },
+    {
+      "key": "order",
+      "type": "select",
+      "title": "Order",
+      "default": "Shuffle",
+      "options": [
+        "Shuffle",
+        "Album order"
+      ],
+      "group": "Timing",
+      "description": "Shuffle shows every photo once in random order before any repeats."
+    },
+    {
+      "key": "transition",
+      "type": "select",
+      "title": "Transition",
+      "default": "Crossfade",
+      "options": [
+        "Crossfade",
+        "Cut"
+      ],
+      "group": "Timing",
+      "description": "Cut sends one photo to the screen at a time, which leaves room for larger, sharper photos."
+    },
+    {
+      "key": "fadeSeconds",
+      "type": "number",
+      "title": "Crossfade duration",
+      "default": 1.5,
+      "min": 0.5,
+      "max": 5,
+      "step": 0.5,
+      "unit": "s",
+      "group": "Timing",
+      "visibleWhen": {
+        "key": "transition",
+        "equals": "Crossfade"
+      }
+    },
+    {
+      "key": "zoom",
+      "type": "boolean",
+      "title": "Slow zoom",
+      "default": false,
+      "group": "Timing",
+      "description": "Gently zoom each photo while it shows. Turn off on slower tablets if the motion stutters."
+    },
+    {
+      "key": "zoomAmount",
+      "type": "number",
+      "title": "Zoom amount",
+      "default": 10,
+      "min": 5,
+      "max": 30,
+      "step": 5,
+      "unit": "%",
+      "group": "Timing",
+      "description": "How far each photo zooms in over its time on screen.",
+      "visibleWhen": {
+        "key": "zoom",
+        "equals": true
+      }
+    },
+    {
+      "key": "horizontalFit",
+      "type": "select",
+      "title": "Horizontal photos",
+      "default": "Fill screen (crop)",
+      "options": [
+        "Fill screen (crop)",
+        "Whole photo, blurred background",
+        "Whole photo, plain background"
+      ],
+      "group": "Photo fit and cropping",
+      "description": "Landscape and square photos."
+    },
+    {
+      "key": "verticalFit",
+      "type": "select",
+      "title": "Vertical photos",
+      "default": "Whole photo, blurred background",
+      "options": [
+        "Fill screen (crop)",
+        "Whole photo, blurred background",
+        "Whole photo, plain background"
+      ],
+      "group": "Photo fit and cropping",
+      "description": "Portrait photos."
+    },
+    {
+      "key": "cropLimit",
+      "type": "number",
+      "title": "Crop at most",
+      "default": 30,
+      "min": 0,
+      "max": 100,
+      "step": 5,
+      "unit": "%",
+      "group": "Photo fit and cropping",
+      "description": "With Fill screen, a photo that would lose more than this share of its picture shows whole on a blurred background instead. A 4:3 photo on a 16:10 screen loses about 17%, a vertical photo on a landscape screen about 50%. 100% always crops."
+    },
+    {
+      "key": "cropFocus",
+      "type": "select",
+      "title": "Keep in view when cropping",
+      "default": "Center",
+      "options": [
+        "Center",
+        "Upper part",
+        "Top"
+      ],
+      "group": "Photo fit and cropping",
+      "description": "Which part of a photo stays on screen when its top or bottom is cropped. Upper part keeps faces in most portrait photos."
+    },
+    {
+      "key": "backgroundColor",
+      "type": "color",
+      "title": "Plain background color",
+      "default": "#000000",
+      "group": "Photo fit and cropping",
+      "description": "Shown around photos set to Whole photo, plain background."
+    },
+    {
+      "key": "dateCaption",
+      "type": "select",
+      "title": "Show date taken",
+      "default": "Off",
+      "options": [
+        "Off",
+        "Month and year",
+        "Full date"
+      ],
+      "group": "Display",
+      "description": "A small caption in the bottom right corner."
+    },
+    {
+      "key": "maxSize",
+      "type": "select",
+      "title": "Maximum photo size",
+      "default": "1920 px",
+      "options": [
+        "1280 px",
+        "1920 px",
+        "2560 px"
+      ],
+      "group": "Display",
+      "description": "Photos download at your screen size up to this limit on the long side."
+    },
+    {
+      "key": "oversize",
+      "type": "select",
+      "title": "When a photo is too large",
+      "default": "Reduce resolution (keep quality)",
+      "options": [
+        "Reduce resolution (keep quality)",
+        "Reduce quality (keep resolution)"
+      ],
+      "group": "Display",
+      "description": "Kiosk Satellite limits a screensaver page to 512 KB, and a crossfade holds two photos. Detailed photos that do not fit are requested again smaller or with stronger compression. Cut transition makes this rare."
+    }
+  ],
+  "commands": [
+    {
+      "id": "next",
+      "title": "Next photo"
+    },
+    {
+      "id": "reload",
+      "title": "Reload albums"
+    }
+  ],
+  "groups": [
+    {
+      "title": "Album"
+    },
+    {
+      "title": "Timing"
+    },
+    {
+      "title": "Photo fit and cropping"
+    },
+    {
+      "title": "Display"
+    }
+  ]
+}
