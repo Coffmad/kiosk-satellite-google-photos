@@ -35,6 +35,14 @@
       "description": "How often the album list is downloaded again to pick up added or removed photos."
     },
     {
+      "key": "matchOrientation",
+      "type": "boolean",
+      "title": "Only photos that match the screen",
+      "default": false,
+      "group": "Album",
+      "description": "Show vertical photos only on a portrait screen and horizontal photos only on a landscape screen. Square photos show on both. If no photo matches, every photo shows."
+    },
+    {
       "key": "interval",
       "type": "number",
       "title": "Time per photo",

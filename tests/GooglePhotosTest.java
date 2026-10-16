@@ -166,6 +166,7 @@ public final class GooglePhotosTest {
         slides();
         slideshow();
         oversizedPhotosShrink();
+        orientation();
         emptyLink();
         System.out.println("GooglePhotosTest passed");
     }
@@ -384,6 +385,71 @@ public final class GooglePhotosTest {
             check(images.size() >= 2 && images.get(0).equals(first) && images.get(1).equals(retry), "Retry order: " + images);
         } finally {
             plugin.stop();
+        }
+    }
+
+    static void orientation() throws Exception {
+        Album.Photo wide = new Album.Photo("w", LH3 + "w", 4000, 3000, 0);
+        Album.Photo tall = new Album.Photo("t", LH3 + "t", 3000, 4000, 0);
+        Album.Photo square = new Album.Photo("s", LH3 + "s", 1000, 1020, 0);
+        Album.Photo unknown = new Album.Photo("u", LH3 + "u", 0, 0, 0);
+        check(GooglePhotosPlugin.suits(wide, true) && !GooglePhotosPlugin.suits(wide, false), "Horizontal photos suit landscape only");
+        check(GooglePhotosPlugin.suits(tall, false) && !GooglePhotosPlugin.suits(tall, true), "Vertical photos suit portrait only");
+        check(GooglePhotosPlugin.suits(square, true) && GooglePhotosPlugin.suits(square, false), "Near-square photos suit both");
+        check(GooglePhotosPlugin.suits(unknown, true) && GooglePhotosPlugin.suits(unknown, false), "Unknown sizes suit both");
+        check(GooglePhotosPlugin.suits(tall, null), "Any orientation when the setting is off");
+
+        FakeHttp http = new FakeHttp();
+        http.rpcStatus = 500;
+        http.page = page(item("AF1QipPhotoOne00000000", 4000, 3000), item("AF1QipPhotoTwo00000000", 3000, 4000), item("AF1QipPhotoThree000000", 1920, 1080));
+        Host host = new Host();
+        host.screensaverActive = true;
+        Map<String, Object> settings = settings(SHORT);
+        settings.put("matchOrientation", true);
+        GooglePhotosPlugin plugin = new GooglePhotosPlugin(http);
+        try {
+            plugin.start(host, settings);
+            await(() -> host.last().contains("data:image/jpeg"), "First photo published");
+            await(() -> http.imageRequests() >= 2, "Next photo prefetched");
+            check(host.status.contains("2 suit this landscape screen"), "Status: " + host.status);
+            for (int i = 0; i < 4; i++) {
+                int count = host.documents.size(), fetched = http.imageRequests();
+                plugin.execute("next", Collections.<String, Object>emptyMap());
+                await(() -> host.documents.size() > count && http.imageRequests() > fetched, "Landscape photo " + i);
+            }
+            check(!String.join(" ", http.requests).contains("PhotoTwo"), "Vertical photo skipped on a landscape screen");
+
+            // Turning the kiosk to portrait replaces the horizontal photo on screen with the vertical one.
+            int before = http.requests.size(), count = host.documents.size();
+            host.screenWidth = 800;
+            host.screenHeight = 1280;
+            // KS rereads the screen size when the screensaver starts.
+            plugin.onEvent("ks.screensaver.state", Collections.<String, Object>singletonMap("active", true));
+            await(() -> host.documents.size() > count && http.requests.size() >= before + 2, "Photo replaced after turning");
+            for (int i = 0; i < 2; i++) {
+                int shown = host.documents.size(), fetched = http.imageRequests();
+                plugin.execute("next", Collections.<String, Object>emptyMap());
+                await(() -> host.documents.size() > shown && http.imageRequests() > fetched, "Portrait photo " + i);
+            }
+            List<String> requests = new ArrayList<>(http.requests);
+            List<String> after = requests.subList(before, requests.size());
+            for (String url : after) check(url.contains("PhotoTwo"), "Only the vertical photo on a portrait screen: " + after);
+        } finally {
+            plugin.stop();
+        }
+
+        // An album with nothing that suits the screen shows every photo instead of nothing.
+        FakeHttp tallOnly = new FakeHttp();
+        tallOnly.rpcStatus = 500;
+        tallOnly.page = page(item("AF1QipPhotoTwo00000000", 3000, 4000));
+        Host landscape = new Host();
+        GooglePhotosPlugin fallback = new GooglePhotosPlugin(tallOnly);
+        try {
+            fallback.start(landscape, settings);
+            await(() -> landscape.last().contains("data:image/jpeg"), "Vertical photo shown when nothing suits");
+            check(landscape.status.contains("None suit this landscape screen"), "Status: " + landscape.status);
+        } finally {
+            fallback.stop();
         }
     }
 

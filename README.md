@@ -31,6 +31,7 @@ The plugin subpage shows how many photos were found, or why an album could not b
 | --- | --- |
 | Shared album link | One or more share links, separated by spaces |
 | Check album for new photos every | How often the album list is downloaded again, 1 to 48 hours |
+| Only photos that match the screen | Shows vertical photos only on a portrait screen and horizontal photos only on a landscape screen. Square photos show on both. When the kiosk is turned, the next screensaver start picks up the new orientation. If no photo in the album matches, every photo shows. Off by default |
 
 **Timing**
 

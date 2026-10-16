@@ -31,6 +31,8 @@ public final class GooglePhotosPlugin implements KioskPlugin {
     private static final String UNKNOWN = "?";
     private static final int MAX_IMAGE_BYTES = 4 * 1024 * 1024;
     private static final long MINUTE = 60_000L;
+    /** Photos within this share of square suit either screen orientation. */
+    private static final double SQUARE = 0.05;
 
     // Setting options, as declared in the manifest.
     static final String FIT_FILL = "Fill screen (crop)";
@@ -44,6 +46,8 @@ public final class GooglePhotosPlugin implements KioskPlugin {
     static final class Config {
         final String links;
         final long refreshMs;
+        /** Show only photos whose orientation matches the screen's. */
+        final boolean matchOrientation;
         final long intervalMs;
         final boolean shuffle;
         final boolean crossfade;
@@ -63,6 +67,7 @@ public final class GooglePhotosPlugin implements KioskPlugin {
         Config(Map<String, Object> settings) {
             links = String.join(" ", Album.links(string(settings.get("albumLinks"), "")));
             refreshMs = Math.round(number(settings.get("refreshHours"), 6, 1, 168) * 60 * MINUTE);
+            matchOrientation = Boolean.TRUE.equals(settings.get("matchOrientation"));
             intervalMs = Math.round(number(settings.get("interval"), 30, 5, 3600) * 1000);
             shuffle = !"Album order".equals(settings.get("order"));
             crossfade = !"Cut".equals(settings.get("transition"));
@@ -91,7 +96,7 @@ public final class GooglePhotosPlugin implements KioskPlugin {
         }
 
         private String key() {
-            return links + "|" + refreshMs + "|" + intervalMs + "|" + shuffle + "|" + fadeSeconds + "|" + zoom + "|"
+            return links + "|" + refreshMs + "|" + matchOrientation + "|" + intervalMs + "|" + shuffle + "|" + fadeSeconds + "|" + zoom + "|"
                 + zoomAmount + "|" + focusY + "|" + background + "|" + date + "|" + sizing();
         }
 
@@ -167,14 +172,7 @@ public final class GooglePhotosPlugin implements KioskPlugin {
             host.executeCommand("isScreensaverActive", Collections.<String, Object>emptyMap(), (ok, data, error) -> {
                 if (ok) { screensaverActive = Boolean.TRUE.equals(data); update(); }
             });
-            host.executeCommand("getDeviceInfo", Collections.<String, Object>emptyMap(), (ok, data, error) -> {
-                if (!ok || !(data instanceof Map)) return;
-                Object width = ((Map<?, ?>) data).get("screenWidth"), height = ((Map<?, ?>) data).get("screenHeight");
-                if (width instanceof Number && height instanceof Number) {
-                    screenWidth = ((Number) width).intValue();
-                    screenHeight = ((Number) height).intValue();
-                }
-            });
+            readScreen(host);
         } catch (RuntimeException unavailable) {
             // Without state events the slideshow simply keeps cycling.
             host.log("Screensaver state unavailable: " + unavailable.getMessage());
@@ -183,6 +181,23 @@ public final class GooglePhotosPlugin implements KioskPlugin {
         // Lists the mode right away. The worker replaces this once photos arrive.
         publish(Slides.message("Loading Google Photos...", null));
         configure(settings);
+    }
+
+    /** The screen size, read again each time the screensaver starts since the kiosk may have been turned. */
+    private void readScreen(PluginHost host) {
+        host.executeCommand("getDeviceInfo", Collections.<String, Object>emptyMap(), (ok, data, error) -> {
+            if (!ok || !(data instanceof Map)) return;
+            Object width = ((Map<?, ?>) data).get("screenWidth"), height = ((Map<?, ?>) data).get("screenHeight");
+            if (width instanceof Number && height instanceof Number) {
+                int oldWidth = screenWidth, oldHeight = screenHeight;
+                screenWidth = ((Number) width).intValue();
+                screenHeight = ((Number) height).intValue();
+                // The kiosk turned: replace a photo that no longer suits it.
+                Config c = config;
+                if (c != null && c.matchOrientation && oldWidth > 0 && oldHeight > 0
+                    && (oldWidth > oldHeight) != (screenWidth > screenHeight)) schedule(0, false);
+            }
+        });
     }
 
     @Override
@@ -205,6 +220,14 @@ public final class GooglePhotosPlugin implements KioskPlugin {
         if (payload == null) return;
         if ("ks.screensaver.state".equals(event)) {
             screensaverActive = Boolean.TRUE.equals(payload.get("active"));
+            PluginHost h = host;
+            if (screensaverActive && h != null) {
+                try {
+                    readScreen(h);
+                } catch (RuntimeException unavailable) {
+                    // The size read at start still applies.
+                }
+            }
             update();
         } else if ("ks.screensaver.view".equals(event)) {
             Object shown = payload.get("view");
@@ -280,8 +303,8 @@ public final class GooglePhotosPlugin implements KioskPlugin {
             boolean changed = !c.links.equals(loadedLinks) || photos.isEmpty();
             if (changed) load(c);
             else if (System.currentTimeMillis() - loadedAt > c.refreshMs) refresh(c);
-            // A different album replaces the photo on screen right away.
-            if (advance || changed || shown == null) showNext(c);
+            // A different album, or a photo that no longer suits the screen, is replaced right away.
+            if (advance || changed || shown == null || !suits(shown.photo, wanted(c))) showNext(c);
             else redraw(c);
             failures = 0;
         } catch (IOException | RuntimeException error) {
@@ -333,14 +356,14 @@ public final class GooglePhotosPlugin implements KioskPlugin {
         if (prefetchedPhoto != null && indexOf(prefetchedPhoto.id) < 0) clearPrefetch();
         String albums = links.size() == 1 ? "1 album" : links.size() + " albums";
         String time = new SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date());
-        status(all.size() + " photos from " + albums + ". Updated " + time + "."
+        status(all.size() + " photos from " + albums + "." + matching(c) + " Updated " + time + "."
             + (failed > 0 ? " " + failed + " link" + (failed == 1 ? "" : "s") + " failed: " + firstError.getMessage() : ""), failed > 0);
     }
 
     private void showNext(Config c) throws IOException {
         Slides.Image image = null;
         Album.Photo photo = null;
-        if (prefetched != null && c.sizing().equals(prefetchedSizing)) {
+        if (prefetched != null && sizing(c).equals(prefetchedSizing) && suits(prefetchedPhoto, wanted(c))) {
             image = prefetched;
             photo = prefetchedPhoto;
         }
@@ -402,28 +425,72 @@ public final class GooglePhotosPlugin implements KioskPlugin {
         try {
             prefetched = download(photo, c);
             prefetchedPhoto = photo;
-            prefetchedSizing = c.sizing();
+            prefetchedSizing = sizing(c);
         } catch (IOException | IllegalArgumentException skipped) {
             // showNext picks another photo if this one is gone.
             clearPrefetch();
         }
     }
 
-    /** Next photo in shuffle-bag or album order. Every photo shows once before any repeats. */
+    /**
+     * Next photo in shuffle-bag or album order, among those that suit the screen. Every photo shows once before
+     * any repeats.
+     */
     private Album.Photo pick(Config c) {
+        Boolean landscape = wanted(c);
         if (!c.shuffle) {
-            position = (position + 1) % photos.size();
+            for (int step = 0; step < photos.size(); step++) {
+                position = (position + 1) % photos.size();
+                if (suits(photos.get(position), landscape)) break;
+            }
             return photos.get(position);
         }
-        if (bag.isEmpty()) {
-            for (int i = 0; i < photos.size(); i++) bag.add(i);
-            Collections.shuffle(bag, random);
-            // Avoid showing the same photo twice in a row across rounds.
-            if (bag.size() > 1 && photos.get(bag.get(bag.size() - 1)).id.equals(lastPhotoId)) {
-                Collections.swap(bag, 0, bag.size() - 1);
+        while (true) {
+            if (bag.isEmpty()) {
+                for (int i = 0; i < photos.size(); i++) if (suits(photos.get(i), landscape)) bag.add(i);
+                Collections.shuffle(bag, random);
+                // Avoid showing the same photo twice in a row across rounds.
+                if (bag.size() > 1 && photos.get(bag.get(bag.size() - 1)).id.equals(lastPhotoId)) {
+                    Collections.swap(bag, 0, bag.size() - 1);
+                }
             }
+            Album.Photo photo = photos.get(bag.remove(bag.size() - 1));
+            // Photos left in the bag from before the screen turned are skipped. wanted() keeps the refill nonempty.
+            if (suits(photo, landscape)) return photo;
         }
-        return photos.get(bag.remove(bag.size() - 1));
+    }
+
+    /**
+     * The orientation photos must have: true for landscape, false for portrait, or null for any. Any applies when
+     * the setting is off, the screen size is unknown or square, or no photo in the album matches.
+     */
+    Boolean wanted(Config c) {
+        Boolean landscape = screenOrientation(c);
+        if (landscape == null) return null;
+        for (Album.Photo photo : photos) if (suits(photo, landscape)) return landscape;
+        return null;
+    }
+
+    private Boolean screenOrientation(Config c) {
+        int w = screenWidth, h = screenHeight;
+        return !c.matchOrientation || w <= 0 || h <= 0 || w == h ? null : w > h;
+    }
+
+    /** Whether a photo suits the orientation. Square photos and unknown sizes suit both. */
+    static boolean suits(Album.Photo photo, Boolean landscape) {
+        if (landscape == null || photo.width <= 0 || photo.height <= 0) return true;
+        double aspect = (double) photo.width / photo.height;
+        return Math.abs(aspect - 1) < SQUARE || (aspect > 1) == landscape;
+    }
+
+    /** How many photos suit the screen, for the status line, or empty when the setting is off. */
+    private String matching(Config c) {
+        Boolean landscape = screenOrientation(c);
+        if (landscape == null) return "";
+        int n = 0;
+        for (Album.Photo photo : photos) if (suits(photo, landscape)) n++;
+        String screen = landscape ? "landscape" : "portrait";
+        return n == 0 ? " None suit this " + screen + " screen, so all are shown." : " " + n + " suit this " + screen + " screen.";
     }
 
     /** Scale and quality pairs tried in turn until a photo fits the page. Quality 0 is Google's default. */
@@ -454,6 +521,9 @@ public final class GooglePhotosPlugin implements KioskPlugin {
         }
         throw new IOException("Photo is too large to display");
     }
+
+    /** Download settings plus the screen size, which changes when the kiosk turns. */
+    private String sizing(Config c) { return c.sizing() + "|" + screenWidth + "x" + screenHeight; }
 
     /** The download size: the screen, capped at maxSize on its long side. */
     private int[] box(int maxSize) {
