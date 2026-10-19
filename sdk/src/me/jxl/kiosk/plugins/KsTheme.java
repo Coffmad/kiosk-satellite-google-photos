@@ -68,7 +68,7 @@ public final class KsTheme {
     /** Every color role this KS version provides. */
     public Map<String, Integer> colors() { return colors; }
 
-    /** Pixels for a length in dp. */
+    /** Pixels for a length in dp, at the kiosk's UI scale. */
     public int px(float dp) { return Math.round(dp * density); }
 
     /** Corner radius of cards, dialogs and other primary surfaces, in dp. */

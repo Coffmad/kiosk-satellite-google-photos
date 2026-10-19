@@ -10,12 +10,56 @@ public interface PluginHost {
         void onResult(boolean ok, Object data, String error);
     }
 
+    /** SDK 1, camera. Frames from openCamera, delivered one at a time on a camera thread of the plugin's own. */
+    interface CameraListener {
+        /** A new frame. Frames that arrive while this call still runs are skipped. */
+        void onFrame(CameraFrame frame);
+        /**
+         * The camera closed and no frames follow. reason is "closed", "timeout", "busy", "disabled", "permission",
+         * "no_camera" or "camera_failed".
+         */
+        default void onClosed(String reason) {}
+    }
+
     /** SDK 1, host.read or host.control. Asynchronous documented KS commands. */
     default void executeCommand(String command, Map<String, Object> arguments, CommandCallback callback) { throw new UnsupportedOperationException("SDK 1 required"); }
     /** SDK 1, host.read. Events arrive through onEvent("ks." + event, payload). */
     default void subscribe(String event) { throw new UnsupportedOperationException("SDK 1 required"); }
     /** SDK 1. Stop observing an event. All subscriptions end with the session. */
     default void unsubscribe(String event) { throw new UnsupportedOperationException("SDK 1 required"); }
+    /**
+     * SDK 1, ha. Send one Home Assistant websocket command without its id, such as {type: "call_service", domain,
+     * service, service_data, target}. KS signs in with its own token and numbers the message. data is HA's result. On
+     * failure, error reads "code: message" and data holds {code, message}. Credential commands are refused.
+     */
+    default void haCall(Map<String, Object> message, CommandCallback callback) { throw new UnsupportedOperationException("Home Assistant access is unavailable"); }
+    /**
+     * SDK 1, ha. Start a Home Assistant subscription, such as subscribe_trigger or render_template, under a key of the
+     * plugin's choosing. The callback says whether HA accepted it. Events arrive through
+     * onEvent("ks.ha.subscription." + key, payload) until haUnsubscribe or the end of the session. At most 16.
+     */
+    default void haSubscribe(String key, Map<String, Object> message, CommandCallback callback) { throw new UnsupportedOperationException("Home Assistant access is unavailable"); }
+    /** SDK 1, ha. End a subscription. Unknown keys are ignored. */
+    default void haUnsubscribe(String key) { throw new UnsupportedOperationException("Home Assistant access is unavailable"); }
+    /**
+     * SDK 1, camera. Receive frames from the device camera, through the same session motion detection uses. Options:
+     * size "320x240", "640x480" (default) or "1280x720", fps 1 to 15 (default 5), facing "default", "front" or
+     * "back", format "luminance" (default) or "nv21" and timeoutSeconds 5 to 600 (default 60). The camera closes when
+     * the time is up. Call it again to change the options or restart the time. One plugin holds the camera at a time.
+     */
+    default void openCamera(Map<String, Object> options, CameraListener listener) { throw new UnsupportedOperationException("Camera access is unavailable"); }
+    /** SDK 1, camera. Stop the frames. The listener hears onClosed("closed"). */
+    default void closeCamera() { throw new UnsupportedOperationException("Camera access is unavailable"); }
+    /**
+     * SDK 1, barcode. Show the KS scanner and answer with the first code it reads as {value, format}. Options: formats,
+     * a list from "qr_code", "aztec", "data_matrix", "pdf417", "ean_13", "ean_8", "upc_a", "upc_e", "code_128",
+     * "code_39", "code_93", "codabar" and "itf" (default all), facing "default", "front" or "back", timeoutSeconds
+     * 5 to 120 (default 30), title up to 80 characters and message up to 200. On failure error and data.code are
+     * "canceled", "timeout", "busy", "disabled", "permission", "no_camera", "camera_failed" or "unavailable".
+     */
+    default void scanBarcode(Map<String, Object> options, CommandCallback callback) { throw new UnsupportedOperationException("Barcode scanning is unavailable"); }
+    /** SDK 1, barcode. Close this plugin's scanner. Its callback reports "canceled". */
+    default void cancelBarcodeScan() { throw new UnsupportedOperationException("Barcode scanning is unavailable"); }
     /** SDK 1, shizuku. Current availability, permission, backend UID and version. Does not prompt. */
     default Map<String, Object> shizukuState() { throw new UnsupportedOperationException("Shizuku is unavailable"); }
     /** SDK 1, shizuku. Run an absolute executable with separate arguments after the user grants KS access. */
@@ -46,6 +90,8 @@ public interface PluginHost {
      * of the session. With several plugins, each edge keeps the largest.
      */
     default void setContentInsets(int left, int top, int right, int bottom) { throw new UnsupportedOperationException("Content insets are unavailable"); }
+    /** True on a device without a screen, where overlays, windows and screensavers are never shown. A plugin that declares "headless": true checks this and skips them. */
+    default boolean isHeadless() { return false; }
     /** Show or update this plugin's one floating window. Text is plain text. */
     void showWindow(String title, String message, String buttonLabel);
     void hideWindow();
@@ -62,6 +108,28 @@ public interface PluginHost {
     default void status(String message, boolean error) { throw new UnsupportedOperationException("SDK 1 required"); }
     /** SDK 1. Persist settings changed by plugin actions or Home Assistant. */
     default void saveSettings(Map<String, Object> values) { throw new UnsupportedOperationException("SDK 1 required"); }
+    /**
+     * SDK 1. Save only the named settings. Every other saved value stays, secrets included. Use it to fill in
+     * settings that depend on a choice. Like saveSettings, it does not call configure.
+     */
+    default void updateSettings(Map<String, Object> values) { throw new UnsupportedOperationException("Setup controls are unavailable"); }
+    /**
+     * SDK 1. Report on a run that a settings button or a choices refresh started: "running" with progress text,
+     * then "success" or "error" with the outcome. Returns false once the run was canceled, replaced or timed out,
+     * so stop its work. A run with nothing reported for 60 seconds fails.
+     */
+    default boolean setupResult(String run, String state, String message) { throw new UnsupportedOperationException("Setup controls are unavailable"); }
+    /**
+     * SDK 1. Ask the person who started a run to confirm a step, such as trusting a certificate fingerprint. The
+     * answer arrives as onEvent("settings.confirm", {run, accepted}). One question per run at a time. Returns
+     * false once the run is over.
+     */
+    default boolean confirmSetup(String run, String title, String message, String confirmLabel) { throw new UnsupportedOperationException("Setup controls are unavailable"); }
+    /**
+     * SDK 1. List the choices of a string setting declared with "choices": "plugin". The setting stores the ID.
+     * labels may be null, and a null label shows its ID. At most 200. The list lasts for this session.
+     */
+    default void setSettingChoices(String key, String[] ids, String[] labels) { throw new UnsupportedOperationException("Setup controls are unavailable"); }
     /** SDK 1. Register or update an RGB light. Commands arrive as light.<key>. */
     default void publishLight(String key, String name, String[] effects, Map<String, Object> state) { throw new UnsupportedOperationException("SDK 1 required"); }
     default void removeLight(String key) { throw new UnsupportedOperationException("SDK 1 required"); }

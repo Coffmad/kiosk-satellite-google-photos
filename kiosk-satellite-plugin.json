@@ -9,6 +9,7 @@
   "description": "Shows photos from Google Photos shared albums as a Kiosk Satellite screensaver. Paste a shared album link and choose Google Photos under Screensaver mode. Photos stream in random order with a crossfade, with separate crop settings for horizontal and vertical photos.",
   "author": "Coffmad",
   "license": "Apache-2.0",
+  "icon": "icon.png",
   "capabilities": [
     "screensaver",
     "host.read"

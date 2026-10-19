@@ -6,7 +6,10 @@ import android.view.View;
 
 /** SDK 1, overlay. Builds the view of one native overlay. Every method runs on the Android main thread. */
 public interface OverlayFactory {
-    /** Build the view. KS may call this again for the same overlay, for example after its Activity restarts. */
+    /**
+     * Build the view. The context's density includes the kiosk's UI scale. KS may call this again for the same overlay,
+     * for example after its Activity restarts or the UI scale changes.
+     */
     View create(Context context, KsTheme theme);
     /** The KS theme changed, for example from light to dark. Restyle the view. */
     default void onThemeChanged(View view, KsTheme theme) {}

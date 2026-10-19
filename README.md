@@ -13,13 +13,28 @@ A [Kiosk Satellite](https://github.com/jxlarrea/kiosk-satellite) plugin that tur
 - Picks up new photos added to the album every few hours.
 - All stock screensaver settings still apply: idle timeout, schedules, brightness, motion wake, widgets, At a Glance, pixel shift and Now Playing.
 
+## Installation
+
+### Community Plugins (Recommended)
+
+Google Photos Screensaver is listed in [Community Plugins](https://kiosksatellite.com/plugins/). Use the button below to open it in your Kiosk Satellite and install it.
+
+[![Install in Kiosk Satellite](https://kiosksatellite.com/img/badges/plugin-add.svg)](https://kiosksatellite.com/redirect/plugin/?repository=Coffmad/kiosk-satellite-google-photos)
+
+Or search for `Google Photos Screensaver` in **Settings > Plugin Manager > Browse plugins** in Kiosk Satellite.
+
+### Manual
+
+1. Open **Settings > Plugin Manager** in Kiosk Satellite and turn on **Enable Plugins**.
+2. Choose **Add plugin**, paste `https://github.com/Coffmad/kiosk-satellite-google-photos` and choose **Preview**.
+3. Review the plugin and choose **Trust and install**.
+
 ## Setup
 
 1. In Google Photos, open the album and choose **Share > Create link** (or **Copy link** if it is already shared). The link looks like `https://photos.app.goo.gl/AbCdEf123`.
-2. In Kiosk Satellite, open **Settings > Plugin Manager**, turn on **Enable Plugins**, choose **Add plugin**, paste `https://github.com/Coffmad/kiosk-satellite-google-photos` and choose **Preview**. Review it and choose **Trust and install**.
-3. Enable **Google Photos Screensaver** from its entry row and open its subpage.
-4. Paste the link into **Shared album link**.
-5. Open **Screensaver > Screensaver mode** and choose **Google Photos (Google Photos Screensaver)**. You can also choose it in a screensaver schedule entry.
+2. In Kiosk Satellite, enable **Google Photos Screensaver** from its entry row in **Plugin Manager** and open its subpage.
+3. Paste the link into **Shared album link**.
+4. Open **Screensaver > Screensaver mode** and choose **Google Photos (Google Photos Screensaver)**. You can also choose it in a screensaver schedule entry.
 
 The plugin subpage shows how many photos were found, or why an album could not be read.
 
@@ -91,7 +106,7 @@ The build writes `dist/google-photos-screensaver-<version>.zip`. For local testi
 
 Commit the source, then publish a GitHub release tagged with the version, such as `v1.0.0`. The included workflow tests and builds the plugin and attaches the manifest, ZIP and checksum that Kiosk Satellite requires. Share the repository URL so others can install it with **Add plugin**.
 
-The SDK sources in `sdk/` and the build tools in `tools/` come from the [Kiosk Satellite plugin template](https://github.com/jxlarrea/kiosk-satellite-plugin-hello-world).
+The SDK sources in `sdk/` and the build tools in `tools/` come from the [Kiosk Satellite plugin SDK](https://github.com/jxlarrea/kiosk-satellite-plugins).
 
 ## License
 
