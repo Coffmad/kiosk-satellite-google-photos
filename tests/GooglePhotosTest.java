@@ -459,11 +459,11 @@ public final class GooglePhotosTest {
         GooglePhotosPlugin plugin = new GooglePhotosPlugin(http);
         try {
             plugin.start(host, settings(""));
-            await(() -> host.last().contains("Paste a Google Photos, OneDrive or iCloud shared album link"), "Setup message shown");
+            await(() -> host.last().contains("Paste a shared album link"), "Setup message shown");
             check(http.requests.isEmpty(), "No network without a link");
             Map<String, Object> bad = settings("https://example.com/album");
             plugin.configure(bad);
-            await(() -> host.statusError && host.status.contains("Use a Google Photos, OneDrive or iCloud shared album link"), "Rejects other sites: " + host.status);
+            await(() -> host.statusError && host.status.contains("Use a shared album link from"), "Rejects other sites: " + host.status);
             await(() -> host.last().contains("Could not load"), "Error shown on screen");
             check(http.requests.isEmpty(), "Other sites are never fetched");
         } finally {

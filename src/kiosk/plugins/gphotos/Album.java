@@ -21,7 +21,7 @@ import java.util.regex.Pattern;
  */
 final class Album {
     /** Where a photo comes from, which decides how it is downloaded. */
-    enum Source { GOOGLE, ONEDRIVE, ICLOUD }
+    enum Source { GOOGLE, ONEDRIVE, ICLOUD, NEXTCLOUD, DROPBOX, AMAZON, FLICKR, SYNOLOGY }
 
     /**
      * One photo. Width and height are the original's, or 0 when unknown. Taken is epoch milliseconds, or 0. The

@@ -19,7 +19,8 @@ import me.jxl.kiosk.plugins.KioskPlugin;
 import me.jxl.kiosk.plugins.PluginHost;
 
 /**
- * A stock screensaver mode that shows photos from public Google Photos, OneDrive and iCloud shared albums. Callbacks only
+ * A stock screensaver mode that shows photos from shared albums on Google Photos, OneDrive, iCloud, Dropbox, Amazon
+ * Photos, Flickr, Nextcloud and Synology Photos. Callbacks only
  * record state and hand work to one worker thread, which loads albums and downloads photos without
  * holding up KS's three-second callback deadline.
  */
@@ -299,12 +300,14 @@ public final class GooglePhotosPlugin implements KioskPlugin {
         long retry = -1;
         try {
             if (c.links.isEmpty()) {
-                status("Add a Google Photos, OneDrive or iCloud shared album link to start.", false);
+                status("Add a shared album link to start.", false);
                 publish(Slides.message("Shared Album Screensaver",
-                    "Paste a Google Photos, OneDrive or iCloud shared album link in Plugin Manager > Shared Album Screensaver."));
+                    "Paste a shared album link in Plugin Manager > Shared Album Screensaver."));
                 resetAlbum();
                 return;
             }
+            // Expired download addresses come back fresh with the album.
+            if (sources.takeExpired()) loadedAt = 0;
             boolean changed = !c.links.equals(loadedLinks) || photos.isEmpty();
             if (changed) load(c);
             else if (System.currentTimeMillis() - loadedAt > c.refreshMs) refresh(c);

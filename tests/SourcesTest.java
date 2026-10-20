@@ -74,8 +74,8 @@ public final class SourcesTest {
             {"https://contoso-my.sharepoint.com/personal/x", "Work and school"},
             {"https://photos.icloud.com/shared/album/EXAMPLE/", "Public Website"},
             {"https://www.icloud.com/sharedalbum/", "Public Website"},
-            {"https://example.com/album", "Google Photos, OneDrive or iCloud"},
-            {"http://1drv.ms/f/s!abc", "Google Photos, OneDrive or iCloud"},
+            {"https://example.com/album", "Use a shared album link from"},
+            {"http://1drv.ms/f/s!abc", "Use a shared album link from"},
             {"https://photos.google.com/album/AF1Qip", "private"},
         };
         for (String[] bad : rejected) {

@@ -23,7 +23,7 @@ except ValueError as error:
 sources = [*sorted((root / 'sdk/src').rglob('*.java')), *sorted((root / 'src').rglob('*.java')), *sorted((root / 'tests').rglob('*.java'))]
 with tempfile.TemporaryDirectory(prefix='kiosk-plugin-test-') as directory:
     subprocess.run([tool('javac'), '--release', '8', '-cp', platform, '-d', directory, *map(str, sources)], check=True)
-    for test in ['kiosk.plugins.gphotos.GooglePhotosTest', 'kiosk.plugins.gphotos.SourcesTest']:
+    for test in ['kiosk.plugins.gphotos.GooglePhotosTest', 'kiosk.plugins.gphotos.SourcesTest', 'kiosk.plugins.gphotos.NewSourcesTest']:
         subprocess.run([tool('java'), '-ea', '-cp', os.pathsep.join([directory, platform]), test], check=True)
 
 subprocess.run([sys.executable, str(root / 'tools/test_android_sdk.py')], check=True)

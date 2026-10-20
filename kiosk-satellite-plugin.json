@@ -6,7 +6,7 @@
   "apiVersion": 1,
   "minAndroidSdk": 24,
   "entryClass": "kiosk.plugins.gphotos.GooglePhotosPlugin",
-  "description": "Turn Google Photos, OneDrive and iCloud shared albums into your Kiosk Satellite screensaver. Paste one or more album links and choose Shared Albums under Screensaver mode. Photos play in random order with smooth crossfades, separate crop settings for horizontal and vertical photos, optional slow zoom and date captions. No sign-in needed.",
+  "description": "Turn shared photo albums into your Kiosk Satellite screensaver: Google Photos, OneDrive, iCloud, Dropbox, Amazon Photos, Flickr, Nextcloud and Synology Photos. Paste one or more album links and choose Shared Albums under Screensaver mode. Photos play in random order with smooth crossfades, separate crop settings for horizontal and vertical photos, optional slow zoom and date captions. No sign-in needed.",
   "author": "Coffmad",
   "license": "Apache-2.0",
   "icon": "icon.png",
@@ -21,7 +21,7 @@
       "title": "Shared album links",
       "default": "",
       "group": "Album",
-      "description": "Paste a share link, or several separated by spaces to mix albums. Google Photos: Share > Create link. OneDrive: share a folder with \"Anyone with the link\". iCloud: in the shared album turn on Public Website. Work or school OneDrive is not supported."
+      "description": "Paste a share link, or several separated by spaces to mix albums. Works with Google Photos, OneDrive (Anyone with the link), iCloud (Public Website on), Dropbox, Amazon Photos, Flickr, Nextcloud or ownCloud and Synology Photos. Links must be public, with no password. Work or school OneDrive is not supported."
     },
     {
       "key": "refreshHours",
