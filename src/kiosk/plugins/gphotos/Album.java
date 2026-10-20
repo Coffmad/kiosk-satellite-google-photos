@@ -20,17 +20,32 @@ import java.util.regex.Pattern;
  * page and the paging call that page makes. Either can change without notice.
  */
 final class Album {
-    /** One photo. Width and height are the original's, or 0 when unknown. Taken is epoch milliseconds, or 0. */
+    /** Where a photo comes from, which decides how it is downloaded. */
+    enum Source { GOOGLE, ONEDRIVE, ICLOUD }
+
+    /**
+     * One photo. Width and height are the original's, or 0 when unknown. Taken is epoch milliseconds, or 0. The
+     * url is the source's own reference: Google's image base, OneDrive's thumbnail address or iCloud's album
+     * address, with asset naming the iCloud file.
+     */
     static final class Photo {
+        final Source source;
         final String id;
         final String url;
+        final String asset;
         final int width;
         final int height;
         final long taken;
 
         Photo(String id, String url, int width, int height, long taken) {
+            this(Source.GOOGLE, id, url, "", width, height, taken);
+        }
+
+        Photo(Source source, String id, String url, String asset, int width, int height, long taken) {
+            this.source = source;
             this.id = id;
             this.url = url;
+            this.asset = asset;
             this.width = width;
             this.height = height;
             this.taken = taken;

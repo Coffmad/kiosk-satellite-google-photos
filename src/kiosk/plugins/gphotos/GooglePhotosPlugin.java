@@ -19,17 +19,16 @@ import me.jxl.kiosk.plugins.KioskPlugin;
 import me.jxl.kiosk.plugins.PluginHost;
 
 /**
- * A stock screensaver mode that shows photos from public Google Photos shared albums. Callbacks only
+ * A stock screensaver mode that shows photos from public Google Photos, OneDrive and iCloud shared albums. Callbacks only
  * record state and hand work to one worker thread, which loads albums and downloads photos without
  * holding up KS's three-second callback deadline.
  */
 public final class GooglePhotosPlugin implements KioskPlugin {
     static final String KEY = "photos";
-    static final String TITLE = "Google Photos";
+    static final String TITLE = "Shared Albums";
     // The screensaver.view value while this renderer is on screen.
     static final String MODE = "plugin:google-photos-screensaver:" + KEY;
     private static final String UNKNOWN = "?";
-    private static final int MAX_IMAGE_BYTES = 4 * 1024 * 1024;
     private static final long MINUTE = 60_000L;
     /** Photos within this share of square suit either screen orientation. */
     private static final double SQUARE = 0.05;
@@ -120,6 +119,7 @@ public final class GooglePhotosPlugin implements KioskPlugin {
     }
 
     private final Http http;
+    private final Sources sources;
     private final Random random = new Random();
 
     // Shared between callbacks and the worker.
@@ -152,9 +152,14 @@ public final class GooglePhotosPlugin implements KioskPlugin {
     private String lastDocument;
     private int failures;
 
-    public GooglePhotosPlugin() { this(new Http.Default()); }
+    public GooglePhotosPlugin() { this(new Http.Default(), new AndroidShrinker()); }
 
-    GooglePhotosPlugin(Http http) { this.http = http; }
+    GooglePhotosPlugin(Http http) { this(http, new AndroidShrinker()); }
+
+    GooglePhotosPlugin(Http http, Shrinker shrinker) {
+        this.http = http;
+        this.sources = new Sources(http, shrinker);
+    }
 
     @Override
     public void start(PluginHost host, Map<String, Object> settings) {
@@ -179,7 +184,7 @@ public final class GooglePhotosPlugin implements KioskPlugin {
             active = true;
         }
         // Lists the mode right away. The worker replaces this once photos arrive.
-        publish(Slides.message("Loading Google Photos...", null));
+        publish(Slides.message("Loading photos...", null));
         configure(settings);
     }
 
@@ -294,9 +299,9 @@ public final class GooglePhotosPlugin implements KioskPlugin {
         long retry = -1;
         try {
             if (c.links.isEmpty()) {
-                status("Add a Google Photos shared album link to start.", false);
-                publish(Slides.message("Google Photos screensaver",
-                    "Paste a shared album link in Plugin Manager > Google Photos Screensaver."));
+                status("Add a Google Photos, OneDrive or iCloud shared album link to start.", false);
+                publish(Slides.message("Shared Album Screensaver",
+                    "Paste a Google Photos, OneDrive or iCloud shared album link in Plugin Manager > Shared Album Screensaver."));
                 resetAlbum();
                 return;
             }
@@ -312,7 +317,7 @@ public final class GooglePhotosPlugin implements KioskPlugin {
             failures++;
             String message = error.getMessage() == null ? error.toString() : error.getMessage();
             status("Could not update photos: " + message, true);
-            if (shown == null) publish(Slides.message("Could not load Google Photos", message));
+            if (shown == null) publish(Slides.message("Could not load photos", message));
             retry = Math.min(30 * MINUTE, MINUTE << Math.min(failures - 1, 5));
         } finally {
             if (!stopped && latest(mine)) {
@@ -333,15 +338,14 @@ public final class GooglePhotosPlugin implements KioskPlugin {
     }
 
     private void load(Config c) throws IOException {
-        if (shown == null) publish(Slides.message("Loading Google Photos...", null));
+        if (shown == null) publish(Slides.message("Loading photos...", null));
         List<Album.Photo> all = new ArrayList<>();
         List<String> links = Album.links(c.links);
         IOException firstError = null;
         int failed = 0;
-        Album album = new Album(http);
         for (String link : links) {
             try {
-                all.addAll(album.load(link));
+                all.addAll(sources.load(link));
             } catch (IOException | IllegalArgumentException error) {
                 failed++;
                 if (firstError == null) firstError = new IOException(error.getMessage(), error);
@@ -493,13 +497,13 @@ public final class GooglePhotosPlugin implements KioskPlugin {
         return n == 0 ? " None suit this " + screen + " screen, so all are shown." : " " + n + " suit this " + screen + " screen.";
     }
 
-    /** Scale and quality pairs tried in turn until a photo fits the page. Quality 0 is Google's default. */
+    /** Scale and quality pairs tried in turn until a photo fits the page. Quality 0 is the service's default. */
     static final double[][] KEEP_QUALITY = {{1, 0}, {0.8, 0}, {0.64, 0}, {0.51, 0}, {0.41, 0}, {0.33, 0}};
     static final double[][] KEEP_RESOLUTION = {{1, 0}, {1, 75}, {1, 65}, {1, 55}, {0.8, 55}, {0.64, 55}, {0.51, 55}, {0.41, 55}};
 
     /**
      * Downloads a photo sized for this screen. A photo too large for KS's page limit is requested again
-     * smaller, or at lower quality when the user chose that.
+     * smaller, or at lower quality when the user chose that. iCloud photos are shrunk on the device instead.
      */
     private Slides.Image download(Album.Photo photo, Config c) throws IOException {
         int[] box = box(c.maxSize);
@@ -512,12 +516,10 @@ public final class GooglePhotosPlugin implements KioskPlugin {
         }
         int budget = Slides.imageBudget(c.crossfade);
         for (double[] attempt : c.reduceQuality ? KEEP_RESOLUTION : KEEP_QUALITY) {
-            String url = Album.sized(photo, (int) (width * attempt[0]), (int) (height * attempt[0]), (int) attempt[1]);
-            Http.Response response = http.request(url, null, MAX_IMAGE_BYTES);
-            if (response.status != 200) throw new IOException("Photo download returned HTTP " + response.status);
+            byte[] bytes = sources.fetch(photo, (int) (width * attempt[0]), (int) (height * attempt[0]), (int) attempt[1]);
             // Base64 grows the image by a third.
-            if ((response.body.length + 2) / 3 * 4 + 32 > budget) continue;
-            return new Slides.Image(response.body, photo, 20 + random.nextInt(61), 20 + random.nextInt(61));
+            if ((bytes.length + 2) / 3 * 4 + 32 > budget) continue;
+            return new Slides.Image(bytes, photo, 20 + random.nextInt(61), 20 + random.nextInt(61));
         }
         throw new IOException("Photo is too large to display");
     }

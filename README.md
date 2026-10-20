@@ -1,27 +1,28 @@
-# Google Photos Screensaver for Kiosk Satellite
+# Shared Album Screensaver for Kiosk Satellite
 
-A [Kiosk Satellite](https://github.com/jxlarrea/kiosk-satellite) plugin that turns a Google Photos shared album into a screensaver. Paste the album's share link, pick **Google Photos** as the screensaver mode, and photos stream from the album in random order with a smooth crossfade.
+A [Kiosk Satellite](https://github.com/jxlarrea/kiosk-satellite) plugin that turns shared photo albums from **Google Photos**, **OneDrive** and **iCloud** into a screensaver. Paste an album's share link, pick **Shared Albums** as the screensaver mode, and photos stream from the album in random order with a smooth crossfade.
 
-- Works with any album shared by link. No Google sign-in or API key.
+- Works with albums shared by link. No sign-in, account or API key.
+- Mix albums from different services by pasting more than one link.
 - Shuffle shows every photo once before repeating, or play in album order.
-- Mix several albums by pasting more than one link.
 - Separate fit settings for horizontal and vertical photos: fill the screen, or show the whole photo over a blurred copy of itself or a plain color.
 - A crop limit, so panoramas and portraits are never cropped beyond what you allow, and a choice of which part stays in view.
 - Adjustable time per photo, crossfade duration and optional slow zoom (Ken Burns) effect.
 - Optional date-taken caption.
 - Photos download at your screen's resolution, one ahead, so each change is instant.
 - Picks up new photos added to the album every few hours.
+- OneDrive folders include their subfolders. OneDrive and iCloud videos are skipped.
 - All stock screensaver settings still apply: idle timeout, schedules, brightness, motion wake, widgets, At a Glance, pixel shift and Now Playing.
 
 ## Installation
 
 ### Community Plugins (Recommended)
 
-Google Photos Screensaver is listed in [Community Plugins](https://kiosksatellite.com/plugins/). Use the button below to open it in your Kiosk Satellite and install it.
+Shared Album Screensaver is listed in [Community Plugins](https://kiosksatellite.com/plugins/). Use the button below to open it in your Kiosk Satellite and install it.
 
 [![Install in Kiosk Satellite](https://kiosksatellite.com/img/badges/plugin-add.svg)](https://kiosksatellite.com/redirect/plugin/?repository=Coffmad/kiosk-satellite-google-photos)
 
-Or search for `Google Photos Screensaver` in **Settings > Plugin Manager > Browse plugins** in Kiosk Satellite.
+Or search for `Shared Album Screensaver` in **Settings > Plugin Manager > Browse plugins** in Kiosk Satellite.
 
 ### Manual
 
@@ -31,10 +32,13 @@ Or search for `Google Photos Screensaver` in **Settings > Plugin Manager > Brows
 
 ## Setup
 
-1. In Google Photos, open the album and choose **Share > Create link** (or **Copy link** if it is already shared). The link looks like `https://photos.app.goo.gl/AbCdEf123`.
-2. In Kiosk Satellite, enable **Google Photos Screensaver** from its entry row in **Plugin Manager** and open its subpage.
-3. Paste the link into **Shared album link**.
-4. Open **Screensaver > Screensaver mode** and choose **Google Photos (Google Photos Screensaver)**. You can also choose it in a screensaver schedule entry.
+1. Get a share link for your album:
+   - **Google Photos:** open the album and choose **Share > Create link** (or **Copy link** if it is already shared). It looks like `https://photos.app.goo.gl/AbCdEf123`.
+   - **OneDrive:** right-click the folder, choose **Share** and set it to **Anyone with the link can view**, then copy the link. It looks like `https://1drv.ms/f/c/...`. Only personal OneDrive works. Work and school OneDrive always asks viewers to sign in.
+   - **iCloud:** on an iPhone or iPad, open the shared album you created in Photos, tap the **People** icon, turn on **Public Website** and tap **Share Link**. It looks like `https://www.icloud.com/sharedalbum/#B0...`. Only the album's owner can turn on Public Website.
+2. In Kiosk Satellite, enable **Shared Album Screensaver** from its entry row in **Plugin Manager** and open its subpage.
+3. Paste the link into **Shared album links**. Add more links separated by spaces to mix albums.
+4. Open **Screensaver > Screensaver mode** and choose **Shared Albums (Shared Album Screensaver)**. You can also choose it in a screensaver schedule entry.
 
 The plugin subpage shows how many photos were found, or why an album could not be read.
 
@@ -44,7 +48,7 @@ The plugin subpage shows how many photos were found, or why an album could not b
 
 | Setting | What it does |
 | --- | --- |
-| Shared album link | One or more share links, separated by spaces |
+| Shared album links | One or more Google Photos, OneDrive or iCloud share links, separated by spaces |
 | Check album for new photos every | How often the album list is downloaded again, 1 to 48 hours |
 | Only photos that match the screen | Shows vertical photos only on a portrait screen and horizontal photos only on a landscape screen. Square photos show on both. When the kiosk is turned, the next screensaver start picks up the new orientation. If no photo in the album matches, every photo shows. Off by default |
 
@@ -83,13 +87,15 @@ The plugin subpage shows how many photos were found, or why an album could not b
 
 ## How it works and its limits
 
-Kiosk Satellite renders plugin screensavers in a locked-down page that cannot reach the network. The plugin therefore downloads each photo itself, sized for your screen by Google's image server, and hands it to the screensaver page embedded in the document. Each new page opens on the previous photo and fades to the next one, and Kiosk Satellite keeps the old page on screen until the new one has painted, so there is no flash of black between photos.
+Kiosk Satellite renders plugin screensavers in a locked-down page that cannot reach the network. The plugin therefore downloads each photo itself and hands it to the screensaver page embedded in the document. Each new page opens on the previous photo and fades to the next one, and Kiosk Satellite keeps the old page on screen until the new one has painted, so there is no flash of black between photos.
 
-- **Image size.** A screensaver page can be at most 512 KB, and a crossfade page holds two photos, so each photo gets about 250 KB. Photos are downloaded at Google's normal quality first. A highly detailed photo that does not fit is requested again, smaller by default, or at stronger compression and full resolution when **When a photo is too large** is set to reduce quality. In testing with a large album of 12-megapixel phone photos at 1920 px, roughly a third needed a retry with Crossfade and about a sixth with Cut. **Cut** holds only one photo per page and so allows roughly twice the detail.
-- **Videos** in the album show as a still frame.
-- **Unofficial access.** Google no longer offers an API that can read albums an app did not create, so the plugin reads the album's public share page, the same page a browser shows. If Google changes that page the plugin may stop finding photos until it is updated. Only albums shared by link work. Private album links (`photos.google.com/album/…`) cannot be read.
-- **Data use.** Photos download only while this screensaver mode is on screen and the display is on, plus one photo ahead. At the default 30 seconds per photo that is about 120 photos an hour, typically 150 to 250 KB each.
-- **Privacy.** Anyone with a shared album link can view the album. The plugin sends requests only to `photos.app.goo.gl`, `photos.google.com` and `lh3.googleusercontent.com`.
+- **Photo sizes.** Google Photos and OneDrive resize each photo for your screen on their servers. iCloud only offers full-size photos, so the plugin downloads the full photo and shrinks it on the tablet, which uses more data and a moment of processing per photo.
+- **Image size.** A screensaver page can be at most 512 KB, and a crossfade page holds two photos, so each photo gets about 250 KB. Photos are downloaded at the service's normal quality first. A highly detailed photo that does not fit is requested again, smaller by default, or at stronger compression and full resolution when **When a photo is too large** is set to reduce quality. In testing with a large album of 12-megapixel phone photos at 1920 px, roughly a third needed a retry with Crossfade and about a sixth with Cut. **Cut** holds only one photo per page and so allows roughly twice the detail.
+- **Videos.** OneDrive and iCloud videos are skipped. Google Photos does not say which items are videos, so they show as a still frame.
+- **Unofficial access.** None of the three services offers an official way to read a shared album without signing in, so the plugin uses the same public pages and web services that each service's own album page uses in a browser. If a service changes them, its albums may stop loading until the plugin is updated. Private links cannot be read: Google Photos `photos.google.com/album/...` links, work or school OneDrive, and iCloud albums without Public Website.
+- **Large albums.** iCloud can take up to half a minute to list a few hundred photos, so the first photo of a big iCloud album takes a little longer to appear.
+- **Data use.** Photos download only while this screensaver mode is on screen and the display is on, plus one photo ahead. At the default 30 seconds per photo that is about 120 photos an hour, typically 150 to 250 KB each from Google Photos and OneDrive, and the full photo, often 0.5 to 3 MB, from iCloud.
+- **Privacy.** Anyone with a shared album link can view the album. The plugin sends requests only to the service each link belongs to: `photos.app.goo.gl`, `photos.google.com` and `lh3.googleusercontent.com` for Google Photos; `1drv.ms`, `onedrive.live.com`, `api-badgerp.svc.ms` (an anonymous viewer token, the same one the OneDrive website uses for shared links) and `my.microsoftpersonalcontent.com` for OneDrive; and `*-sharedstreams.icloud.com` and `*.icloud-content.com` for iCloud. Links are stored only in the plugin's settings on the kiosk.
 
 ## Build and test
 
@@ -100,7 +106,7 @@ python3 tools/test.py
 python3 tools/build.py
 ```
 
-The build writes `dist/google-photos-screensaver-<version>.zip`. For local testing, install it with **Plugin Manager > Developer Tools > Install from ZIP**.
+The build writes `dist/google-photos-screensaver-<version>.zip`. The package keeps its original ID, `google-photos-screensaver`, so existing installs and Community Plugins keep working. For local testing, install it with **Plugin Manager > Developer Tools > Install from ZIP**.
 
 ## Publish
 
@@ -110,4 +116,4 @@ The SDK sources in `sdk/` and the build tools in `tools/` come from the [Kiosk S
 
 ## License
 
-[Apache-2.0](LICENSE). Kiosk Satellite has its own application license. Google Photos is a trademark of Google LLC. This plugin is not affiliated with or endorsed by Google.
+[Apache-2.0](LICENSE). Kiosk Satellite has its own application license. Google Photos is a trademark of Google LLC, OneDrive of Microsoft Corporation and iCloud of Apple Inc. This plugin is not affiliated with or endorsed by Google, Microsoft or Apple.
