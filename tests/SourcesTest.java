@@ -59,6 +59,8 @@ public final class SourcesTest {
         oneDrive();
         oneDriveTokenRenewal();
         iCloud();
+        iCloudShared();
+        iCloudSharedRefusals();
         System.out.println("SourcesTest passed");
     }
 
@@ -69,10 +71,16 @@ public final class SourcesTest {
         check(Sources.sourceOf("https://www.icloud.com/sharedalbum/#B0aGWZuqDGKYgUq") == Album.Source.ICLOUD, "iCloud classic token");
         check(Sources.sourceOf("https://www.icloud.com/sharedalbum/#D1exampleToken_with-Dash0123") == Album.Source.ICLOUD, "iCloud token with _ and -");
         check(ICloud.token("https://www.icloud.com/sharedalbum/#B0aGWZuqDGKYgUq;CFC7E7D2") .equals("B0aGWZuqDGKYgUq"), "Photo suffix dropped");
+        check(Sources.sourceOf("https://photos.icloud.com/shared/album/0A1ExampleAlbum_-xyz") == Album.Source.ICLOUD, "iCloud current link");
+        check(ICloud.token("https://photos.icloud.com/shared/album/0A1ExampleAlbum_-xyz/").equals("0A1ExampleAlbum_-xyz"), "Current link ID");
+        check(ICloud.current("https://photos.icloud.com/shared/album/0A1ExampleAlbum_-xyz")
+            && !ICloud.current("https://www.icloud.com/sharedalbum/#B0aGWZuqDGKYgUq"), "Link kinds");
         String[][] rejected = {
             {"https://contoso.sharepoint.com/:f:/g/personal/x", "Work and school"},
             {"https://contoso-my.sharepoint.com/personal/x", "Work and school"},
-            {"https://photos.icloud.com/shared/album/EXAMPLE/", "Public Website"},
+            {"https://photos.icloud.com/shared/album/", "Public Website"},
+            {"https://photos.icloud.com/shared/album/short", "photos.icloud.com/shared/album/"},
+            {"https://photos.icloud.com/", "Public Website"},
             {"https://www.icloud.com/sharedalbum/", "Public Website"},
             {"https://example.com/album", "Use a shared album link from"},
             {"http://1drv.ms/f/s!abc", "Use a shared album link from"},
@@ -242,6 +250,143 @@ public final class SourcesTest {
             throw new AssertionError("Followed a foreign download address");
         } catch (IOException expected) {
             check(hostile.to("https://evil.example").isEmpty(), "Never contacted the foreign host");
+        }
+    }
+
+    static final String CK = "https://ckdatabasews.icloud.com/database/1/com.apple.photos.cloud/production/public/records/resolve";
+    static final String PARTITION = "https://p77-ckdatabasews.icloud.com:443";
+    static final String QUERY = "https://p77-ckdatabasews.icloud.com/database/1/com.apple.photos.cloud/production/shared/records/query";
+
+    static String resolved(String partition) {
+        return "{\"results\":[{\"shortGUID\":\"x\",\"zoneID\":{\"zoneName\":\"SharedCollection-0000\",\"ownerRecordName\":\"_owner\","
+            + "\"zoneType\":\"REGULAR_CUSTOM_ZONE\"},\"anonymousPublicAccess\":{\"token\":\"tok+en/1\",\"databasePartition\":\""
+            + partition + "\"},\"requireAppleLogin\":false}]}";
+    }
+
+    /** A CloudKit file field and its type, width and height fields. */
+    static String version(String prefix, String type, int w, int h, String url) {
+        return "\"" + prefix + "Res\":{\"type\":\"ASSETID\",\"value\":{\"size\":\"1000\",\"downloadURL\":\"" + url + "\"}},"
+            + "\"" + prefix + "FileType\":{\"value\":\"" + type + "\"},\"" + prefix + "Width\":{\"value\":" + w + "},"
+            + "\"" + prefix + "Height\":{\"value\":" + h + "}";
+    }
+
+    static String master(String name, String itemType, String versions) {
+        return "{\"recordName\":\"" + name + "\",\"recordType\":\"CPLMaster\",\"fields\":{\"itemType\":{\"value\":\"" + itemType
+            + "\"}," + versions + "}}";
+    }
+
+    static String asset(String name, String master, long date, String versions) {
+        return "{\"recordName\":\"" + name + "\",\"recordType\":\"CPLAsset\",\"fields\":{\"masterRef\":{\"type\":\"REFERENCE\","
+            + "\"value\":{\"recordName\":\"" + master + "\"}},\"assetDate\":{\"type\":\"TIMESTAMP\",\"value\":" + date + "}"
+            + (versions.isEmpty() ? "" : "," + versions) + "}}";
+    }
+
+    static void iCloudShared() throws Exception {
+        String id = "0A1ExampleAlbum_-xyz";
+        String link = "https://photos.icloud.com/shared/album/" + id;
+        String cdn = "https://cvws-h2.icloud-content.com/B/";
+        final int[] listings = {0};
+        Fake http = new Fake() {
+            Response answer(String url, String body, Map<String, String> headers) {
+                if (url.startsWith(CK)) return ok(url, resolved(PARTITION));
+                if (url.startsWith(QUERY)) {
+                    if (!body.contains("continuationMarker")) {
+                        listings[0]++;
+                        // Download addresses are signed per listing; the second listing issues fresh ones.
+                        String sig = "sig" + listings[0];
+                        return ok(url, "{\"records\":["
+                            + master("M1", "public.heic", version("resJPEGThumb", "public.jpeg", 360, 480, cdn + "t1/${f}?s=" + sig) + ","
+                                + version("resJPEGMed", "public.jpeg", 1536, 2048, cdn + "m1/${f}?s=" + sig) + ","
+                                + version("resOriginal", "public.heic", 5712, 4284, cdn + "o1/${f}") + ","
+                                + version("resVidMed", "com.apple.quicktime-movie", 654, 872, cdn + "v1/${f}")) + ","
+                            + asset("A1", "M1", 1790932413878L, "") + ","
+                            + master("M2", "com.apple.quicktime-movie", version("resJPEGMed", "public.jpeg", 1920, 1080, cdn + "m2/${f}")) + ","
+                            + asset("A2", "M2", 1790932413000L, "")
+                            + "],\"continuationMarker\":\"page2\"}");
+                    }
+                    return ok(url, "{\"records\":["
+                        + master("M3", "public.jpeg", version("resJPEGMed", "public.jpeg", 2048, 1536, cdn + "m3/${f}") + ","
+                            + version("resJPEGThumb", "public.jpeg", 480, 360, "https://evil.example/t3")) + ","
+                        // An edited photo: its edited version lives on the asset and wins over the master's.
+                        + asset("A3", "M3", 1790000000000L, version("resJPEGFull", "public.jpeg", 4000, 3000, cdn + "f3/${f}")) + ","
+                        + asset("A4", "missing", 0, "")
+                        + "]}");
+                }
+                if (url.startsWith(cdn + "m1/photo.jpg?s=sig1")) return new Response(403, url, new byte[0]);
+                if (url.startsWith(cdn)) return new Response(200, url, new byte[2345]);
+                return new Response(404, url, new byte[0]);
+            }
+        };
+        FakeShrinker shrinker = new FakeShrinker();
+        Sources sources = new Sources(http, shrinker);
+        List<Album.Photo> photos = sources.load(link);
+        check(photos.size() == 2, "Videos and unpaired assets are left out, got " + photos.size());
+        Album.Photo first = photos.get(0), edited = photos.get(1);
+        check(first.source == Album.Source.ICLOUD && first.width == 1536 && first.height == 2048, "Upright JPEG size, not the HEIC original");
+        check(first.taken == 1790932413878L, "CloudKit date taken");
+        check(edited.width == 4000 && edited.height == 3000, "Edited version used");
+        Call resolve = http.to(CK).get(0);
+        check(resolve.url.endsWith("sharing_url_key=" + id) && resolve.body.contains("\"value\":\"" + id + "\""), "Resolve request: " + resolve.body);
+        List<Call> queries = http.to(QUERY);
+        check(queries.size() == 2 && queries.get(1).body.contains("\"continuationMarker\":\"page2\""), "Follows the next page");
+        check(queries.get(0).url.contains("&publicAccessAuthToken=tok%2Ben%2F1") && queries.get(0).url.contains("sharing_url_key=" + id),
+            "Query carries the encoded token: " + queries.get(0).url);
+        check(queries.get(0).body.contains("\"zoneID\":{\"zoneName\":\"SharedCollection-0000\",\"ownerRecordName\":\"_owner\","
+            + "\"zoneType\":\"REGULAR_CUSTOM_ZONE\"}") && queries.get(0).body.contains("\"resultsLimit\":100"), "Query body: " + queries.get(0).body);
+
+        // The first address has expired, so the album is listed again and the fresh address is used.
+        sources.fetch(first, 1280, 800, 0);
+        sources.fetch(first, 1024, 640, 60);
+        List<Call> downloads = http.to(cdn);
+        check(downloads.size() == 2 && downloads.get(0).url.equals(cdn + "m1/photo.jpg?s=sig1")
+            && downloads.get(1).url.equals(cdn + "m1/photo.jpg?s=sig2"), "Expired address renewed once: " + downloads.size());
+        check(http.to(CK).size() == 2, "Listed again for the fresh address");
+        check(shrinker.calls.equals(java.util.Arrays.asList("2345:1280x800@" + Sources.DEVICE_QUALITY, "2345:1024x640@60")),
+            "Shrunk on the device: " + shrinker.calls);
+        sources.fetch(edited, 400, 300, 0);
+        check(http.to(cdn).get(2).url.equals(cdn + "f3/photo.jpg"), "Edited version downloaded: " + http.to(cdn).get(2).url);
+        check(http.to("https://evil.example").isEmpty(), "Foreign download addresses are ignored");
+        // The smallest version that covers the screen, or the largest when none does.
+        List<ICloud.Version> versions = java.util.Arrays.asList(new ICloud.Version("t", 360, 480),
+            new ICloud.Version("m", 1536, 2048), new ICloud.Version("f", 3024, 4032));
+        check(ICloud.choose(versions, 400, 300).url.equals("t") && ICloud.choose(versions, 1000, 800).url.equals("m") && ICloud.choose(versions, 1920, 1200).url.equals("m")
+            && ICloud.choose(versions, 2560, 1600).url.equals("f") && ICloud.choose(versions, 5000, 3000).url.equals("f"), "Version choice");
+    }
+
+    static void iCloudSharedRefusals() throws Exception {
+        String link = "https://photos.icloud.com/shared/album/0A1ExampleAlbum_-xyz";
+        Fake notPublic = new Fake() {
+            Response answer(String url, String body, Map<String, String> headers) {
+                return ok(url, "{\"results\":[{\"shortGUID\":\"x\",\"requireAppleLogin\":true}]}");
+            }
+        };
+        try {
+            new Sources(notPublic, new FakeShrinker()).load(link);
+            throw new AssertionError("Loaded an album that needs a sign-in");
+        } catch (IOException expected) {
+            check(expected.getMessage().contains("Public Website"), expected.getMessage());
+        }
+        Fake missing = new Fake() {
+            Response answer(String url, String body, Map<String, String> headers) { return new Response(404, url, new byte[0]); }
+        };
+        try {
+            new Sources(missing, new FakeShrinker()).load(link);
+            throw new AssertionError("Loaded a missing album");
+        } catch (IOException expected) {
+            check(expected.getMessage().contains("not found"), expected.getMessage());
+        }
+        // The access token only goes to Apple's database servers.
+        Fake hostile = new Fake() {
+            Response answer(String url, String body, Map<String, String> headers) {
+                if (url.startsWith(CK)) return ok(url, resolved("https://evil.example"));
+                return new Response(404, url, new byte[0]);
+            }
+        };
+        try {
+            new Sources(hostile, new FakeShrinker()).load(link);
+            throw new AssertionError("Sent the token to a foreign host");
+        } catch (IOException expected) {
+            check(hostile.calls.size() == 1, "Stopped after resolving");
         }
     }
 }
