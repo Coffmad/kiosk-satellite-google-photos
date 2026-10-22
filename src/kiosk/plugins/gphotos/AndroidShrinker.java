@@ -13,6 +13,20 @@ import java.io.IOException;
 final class AndroidShrinker implements Shrinker {
     @Override
     public byte[] shrink(byte[] image, int maxWidth, int maxHeight, int quality) throws IOException {
+        Bitmap result = decode(image, maxWidth, maxHeight);
+        try {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            if (!result.compress(Bitmap.CompressFormat.JPEG, Math.max(1, Math.min(100, quality)), out)) {
+                throw new IOException("Could not compress the photo");
+            }
+            return out.toByteArray();
+        } finally {
+            result.recycle();
+        }
+    }
+
+    /** The photo upright, fitted within maxWidth x maxHeight and never enlarged. The caller owns the bitmap. */
+    static Bitmap decode(byte[] image, int maxWidth, int maxHeight) throws IOException {
         BitmapFactory.Options bounds = new BitmapFactory.Options();
         bounds.inJustDecodeBounds = true;
         BitmapFactory.decodeByteArray(image, 0, image.length, bounds);
@@ -34,23 +48,15 @@ final class AndroidShrinker implements Shrinker {
         options.inSampleSize = sample;
         Bitmap decoded = BitmapFactory.decodeByteArray(image, 0, image.length, options);
         if (decoded == null) throw new IOException("Could not read the photo");
-        Bitmap result = null;
-        try {
-            // One scale for both axes keeps the shape, whichever way the photo turns.
-            float factor = (float) targetWidth / (turned ? decoded.getHeight() : decoded.getWidth());
-            Matrix matrix = new Matrix();
-            matrix.postScale(factor, factor);
-            if (degrees != 0) matrix.postRotate(degrees);
-            result = Bitmap.createBitmap(decoded, 0, 0, decoded.getWidth(), decoded.getHeight(), matrix, true);
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            if (!result.compress(Bitmap.CompressFormat.JPEG, Math.max(1, Math.min(100, quality)), out)) {
-                throw new IOException("Could not compress the photo");
-            }
-            return out.toByteArray();
-        } finally {
-            if (result != null && result != decoded) result.recycle();
-            decoded.recycle();
-        }
+        // One scale for both axes keeps the shape, whichever way the photo turns.
+        float factor = (float) targetWidth / (turned ? decoded.getHeight() : decoded.getWidth());
+        if (degrees == 0 && Math.abs(factor - 1) < 0.001f) return decoded;
+        Matrix matrix = new Matrix();
+        matrix.postScale(factor, factor);
+        if (degrees != 0) matrix.postRotate(degrees);
+        Bitmap result = Bitmap.createBitmap(decoded, 0, 0, decoded.getWidth(), decoded.getHeight(), matrix, true);
+        if (result != decoded) decoded.recycle();
+        return result;
     }
 
     /** Clockwise rotation from the photo's EXIF orientation. Mirrored orientations keep their rotation only. */

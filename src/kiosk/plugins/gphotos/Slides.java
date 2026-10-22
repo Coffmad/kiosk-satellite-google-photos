@@ -25,8 +25,13 @@ final class Slides {
         PLAIN
     }
 
+    /** A photo ready to show, embedded in a page here or decoded for the native screensaver. */
+    interface Frame {
+        Album.Photo photo();
+    }
+
     /** A downloaded photo ready to embed. */
-    static final class Image {
+    static final class Image implements Frame {
         final String dataUri;
         final Album.Photo photo;
         /** Ken Burns zoom origin, as CSS percentages. */
@@ -41,6 +46,8 @@ final class Slides {
         }
 
         int bytes() { return dataUri.length(); }
+
+        @Override public Album.Photo photo() { return photo; }
     }
 
     /** One photo as it appears in a document. */

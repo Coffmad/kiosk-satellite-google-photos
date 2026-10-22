@@ -92,13 +92,18 @@ final class ICloud {
 
     /** The photo shrunk on the device to fit within width x height. */
     byte[] fetch(Album.Photo photo, int width, int height, int quality) throws IOException {
+        return shrinker.shrink(original(photo), width, height, quality);
+    }
+
+    /** The full photo, kept while it is shrunk to successive sizes. */
+    byte[] original(Album.Photo photo) throws IOException {
         if (!photo.id.equals(cachedId)) {
             cached = null;
             cachedId = null;
             cached = download(photo);
             cachedId = photo.id;
         }
-        return shrinker.shrink(cached, width, height, quality);
+        return cached;
     }
 
     /** A photo from an album entry: its largest version. Null for videos and unusable entries. */

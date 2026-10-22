@@ -21,7 +21,7 @@ public interface PluginHost {
         default void onClosed(String reason) {}
     }
 
-    /** SDK 1, host.read or host.control. Asynchronous documented KS commands. */
+    /** SDK 1, host.read, host.control or screensaver.mode. Asynchronous documented KS commands. */
     default void executeCommand(String command, Map<String, Object> arguments, CommandCallback callback) { throw new UnsupportedOperationException("SDK 1 required"); }
     /** SDK 1, host.read. Events arrive through onEvent("ks." + event, payload). */
     default void subscribe(String event) { throw new UnsupportedOperationException("SDK 1 required"); }
@@ -41,6 +41,21 @@ public interface PluginHost {
     default void haSubscribe(String key, Map<String, Object> message, CommandCallback callback) { throw new UnsupportedOperationException("Home Assistant access is unavailable"); }
     /** SDK 1, ha. End a subscription. Unknown keys are ignored. */
     default void haUnsubscribe(String key) { throw new UnsupportedOperationException("Home Assistant access is unavailable"); }
+    /**
+     * SDK 1, ma. Run one Music Assistant API command, such as "player_queues/play_media" with {queue_id, media}, through
+     * the kiosk's own Music Assistant connection and token. data is Music Assistant's result. On failure, error reads
+     * "code: message" and data holds {code, message}. Players, queues, the library and metadata are open. Server
+     * configuration, sign-in, users and tokens are refused.
+     */
+    default void maCall(String command, Map<String, Object> args, CommandCallback callback) { throw new UnsupportedOperationException("Music Assistant access is unavailable"); }
+    /**
+     * SDK 1, ma. Hear Music Assistant events under a key of the plugin's choosing. The filter is {events: [names],
+     * objectId}, such as {events: ["queue_updated"], objectId: queueId}, with objectId optional. Events arrive through
+     * onEvent("ks.ma.subscription." + key, payload) until maUnsubscribe or the end of the session. At most 16.
+     */
+    default void maSubscribe(String key, Map<String, Object> filter, CommandCallback callback) { throw new UnsupportedOperationException("Music Assistant access is unavailable"); }
+    /** SDK 1, ma. End a subscription. Unknown keys are ignored. */
+    default void maUnsubscribe(String key) { throw new UnsupportedOperationException("Music Assistant access is unavailable"); }
     /**
      * SDK 1, camera. Receive frames from the device camera, through the same session motion detection uses. Options:
      * size "320x240", "640x480" (default) or "1280x720", fps 1 to 15 (default 5), facing "default", "front" or
@@ -68,6 +83,13 @@ public interface PluginHost {
     default void publishScreensaver(String key, String title, String html) { throw new UnsupportedOperationException("Screensavers are unavailable"); }
     /** SDK 1, screensaver. Register an HTML path relative to assets/ with scalar JSON data. Assets load on demand. */
     default void publishScreensaverAsset(String key, String title, String entry, Map<String, Object> data) { throw new UnsupportedOperationException("Screensaver assets are unavailable"); }
+    /**
+     * SDK 1, screensaver. Register a native screensaver drawn by an Android view, under the same keys and limits as
+     * the HTML renderers, replacing any renderer with this key. Does not activate it. While the screensaver shows it,
+     * KS builds the view through the factory on the main thread to fill the screen, with the KS theme and UI scale.
+     * Touches stay with KS. onDestroy means the screensaver is gone, so stop updating the view.
+     */
+    default void publishScreensaverView(String key, String title, OverlayFactory factory) { throw new UnsupportedOperationException("Native screensavers are unavailable"); }
     /** SDK 1, screensaver. Remove a renderer. KS retains the session with a black background. */
     default void removeScreensaver(String key) { throw new UnsupportedOperationException("Screensavers are unavailable"); }
     /** Publish a bounded chart snapshot. SDK 1. */
@@ -126,10 +148,30 @@ public interface PluginHost {
      */
     default boolean confirmSetup(String run, String title, String message, String confirmLabel) { throw new UnsupportedOperationException("Setup controls are unavailable"); }
     /**
-     * SDK 1. List the choices of a string setting declared with "choices": "plugin". The setting stores the ID.
-     * labels may be null, and a null label shows its ID. At most 200. The list lasts for this session.
+     * SDK 1. List the choices of a string setting or list row field declared with "choices": "plugin". The setting
+     * stores the ID. labels may be null, and a null label shows its ID. At most 200, with labels up to 80
+     * characters. key is the setting key or the dotted path of a list row field. KS keeps the latest list for each
+     * key, also across restarts, until the plugin lists that key again.
      */
     default void setSettingChoices(String key, String[] ids, String[] labels) { throw new UnsupportedOperationException("Setup controls are unavailable"); }
+    /**
+     * SDK 1, setup controls. Lists the choices of a string setting or list row field declared with "choices":
+     * "plugin". Each map holds id (required, 1 to 512 characters), label (up to 120, defaults to the id), group (up
+     * to 120, choices with the same group show under one heading, in the order groups first appear) and detail (up
+     * to 120, a secondary line), value (up to 40, shown on the right the way an entity shows its state), category (up to
+     * 40, the chips above the list filter by it) and icon (an MDI name such as "mdi:thermometer"). At most 2000
+     * choices. key is the setting key or the dotted
+     * path of a list row field, such as "panels.tiles.sensor".
+     */
+    default void setSettingChoices(String key, java.util.List<java.util.Map<String, Object>> choices) { throw new UnsupportedOperationException("Rich setting choices are unavailable"); }
+
+    /**
+     * SDK 1, setup controls. Turns a choices setting or list row field off or back on, such as while the device its
+     * choices come from cannot be reached. Off, its picker and its Refresh button do not open and the saved choice
+     * still shows. Every choice starts on in a new session. key is the setting key or the dotted path of a list row
+     * field, as for setSettingChoices.
+     */
+    default void setSettingChoicesEnabled(String key, boolean enabled) { throw new UnsupportedOperationException("Turning choices off is unavailable"); }
     /** SDK 1. Register or update an RGB light. Commands arrive as light.<key>. */
     default void publishLight(String key, String name, String[] effects, Map<String, Object> state) { throw new UnsupportedOperationException("SDK 1 required"); }
     default void removeLight(String key) { throw new UnsupportedOperationException("SDK 1 required"); }

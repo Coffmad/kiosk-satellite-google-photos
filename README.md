@@ -9,7 +9,7 @@ A [Kiosk Satellite](https://github.com/jxlarrea/kiosk-satellite) plugin that tur
 - A crop limit, so panoramas and portraits are never cropped beyond what you allow, and a choice of which part stays in view.
 - Adjustable time per photo, crossfade duration and optional slow zoom (Ken Burns) effect.
 - Optional date-taken caption.
-- Photos download at your screen's resolution, one ahead, so each change is instant.
+- Photos show at your screen's full resolution, downloaded one ahead so each change is instant.
 - Picks up new photos added to the album every few hours.
 - OneDrive, Nextcloud and Amazon Photos shares include their subfolders and albums. Videos are skipped wherever the service marks them.
 - All stock screensaver settings still apply: idle timeout, schedules, brightness, motion wake, widgets, At a Glance, pixel shift and Now Playing.
@@ -63,7 +63,7 @@ The plugin subpage shows how many photos were found, or why an album could not b
 | --- | --- |
 | Time per photo | 5 seconds to 10 minutes |
 | Order | **Shuffle** shows every photo once before repeating. **Album order** follows the album |
-| Transition | **Crossfade** or **Cut**. Cut allows sharper photos, see below |
+| Transition | **Crossfade** or **Cut** |
 | Crossfade duration | 0.5 to 5 seconds |
 | Slow zoom | Slowly zooms each photo while it shows. Turn it off if older tablets stutter |
 | Zoom amount | 5% to 30% over the photo's time on screen |
@@ -84,7 +84,7 @@ The plugin subpage shows how many photos were found, or why an album could not b
 | --- | --- |
 | Show date taken | **Off**, **Month and year** or **Full date**, in the bottom right corner |
 | Maximum photo size | Caps the download size at 1280, 1920 or 2560 pixels on the long side |
-| When a photo is too large | **Reduce resolution (keep quality)** or **Reduce quality (keep resolution)**, see below |
+| When a photo is too large | Only for Kiosk Satellite versions before 2026.10.35, see below. **Reduce resolution (keep quality)** or **Reduce quality (keep resolution)** |
 
 ### Actions
 
@@ -92,10 +92,10 @@ The plugin subpage shows how many photos were found, or why an album could not b
 
 ## How it works and its limits
 
-Kiosk Satellite renders plugin screensavers in a locked-down page that cannot reach the network. The plugin therefore downloads each photo itself and hands it to the screensaver page embedded in the document. Each new page opens on the previous photo and fades to the next one, and Kiosk Satellite keeps the old page on screen until the new one has painted, so there is no flash of black between photos.
+On Kiosk Satellite 2026.10.35 and later, the plugin draws the screensaver natively: it downloads each photo, decodes it on the tablet at your screen's size and draws it with Android's own graphics, crossfading from the previous photo. Photos show in full quality with no size limit. Older Kiosk Satellite versions get the same slideshow as a locked-down web page that cannot reach the network, so the plugin embeds each photo in the page, and Kiosk Satellite keeps the old page on screen until the new one has painted so there is no flash of black between photos. The plugin picks the right method by itself.
 
 - **Photo sizes.** Google Photos, OneDrive and Amazon Photos resize each photo for your screen on their servers. Nextcloud, Dropbox and Flickr offer fixed sizes, and the plugin takes the smallest one that covers your screen and shrinks it on the tablet. iCloud only offers full-size photos, which the plugin downloads and shrinks. Synology's largest preview is about 1280 pixels, so Synology photos show at up to that size.
-- **Image size.** A screensaver page can be at most 512 KB, and a crossfade page holds two photos, so each photo gets about 250 KB. Photos are downloaded at the service's normal quality first. A highly detailed photo that does not fit is requested again, smaller by default, or at stronger compression and full resolution when **When a photo is too large** is set to reduce quality. In testing with a large album of 12-megapixel phone photos at 1920 px, roughly a third needed a retry with Crossfade and about a sixth with Cut. **Cut** holds only one photo per page and so allows roughly twice the detail.
+- **Page size on older Kiosk Satellite versions.** Before 2026.10.35, a screensaver page can be at most 512 KB, and a crossfade page holds two photos, so each photo gets about 250 KB. A highly detailed photo that does not fit is requested again, smaller by default, or at stronger compression and full resolution when **When a photo is too large** is set to reduce quality. **Cut** holds only one photo per page and so allows roughly twice the detail. Updating Kiosk Satellite removes this limit.
 - **Videos.** OneDrive, iCloud, Dropbox, Amazon Photos, Flickr, Nextcloud and Synology videos are skipped. Google Photos does not say which items are videos, so they show as a still frame. RAW camera files are skipped too.
 - **Dates.** Every service except Dropbox reports when a photo was taken, for the date caption.
 - **Unofficial access.** Nextcloud and ownCloud are read through their documented public share interface, and Flickr through its official API. The other services offer no official way to read a shared album without signing in, so the plugin uses the same public pages and web services that each service's own album page uses in a browser. If a service changes them, its albums may stop loading until the plugin is updated. Private and password-protected links cannot be read: Google Photos `photos.google.com/album/...` links, work or school OneDrive, iCloud albums without Public Website, and Nextcloud, ownCloud or Synology shares with a password.

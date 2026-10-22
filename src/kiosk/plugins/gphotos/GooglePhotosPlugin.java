@@ -145,21 +145,30 @@ public final class GooglePhotosPlugin implements KioskPlugin {
     private final List<Integer> bag = new ArrayList<>();
     private int position = -1;
     private String lastPhotoId;
-    private Slides.Image shown;
+    private Slides.Frame shown;
     private long shownAt;
     private Album.Photo prefetchedPhoto;
-    private Slides.Image prefetched;
+    private Slides.Frame prefetched;
     private String prefetchedSizing;
     private String lastDocument;
     private int failures;
 
-    public GooglePhotosPlugin() { this(new Http.Default(), new AndroidShrinker()); }
+    private final Native.Decoder decoder;
+    /** The native screensaver's scenes. Used only when Kiosk Satellite accepted the native renderer. */
+    private final Native.Screen screen = new Native.Screen();
+    /** True when Kiosk Satellite draws the native screensaver, false for the HTML pages of older versions. */
+    private volatile boolean nativeMode;
 
-    GooglePhotosPlugin(Http http) { this(http, new AndroidShrinker()); }
+    public GooglePhotosPlugin() { this(new Http.Default(), new AndroidShrinker(), new AndroidDecoder()); }
 
-    GooglePhotosPlugin(Http http, Shrinker shrinker) {
+    GooglePhotosPlugin(Http http) { this(http, new AndroidShrinker(), new AndroidDecoder()); }
+
+    GooglePhotosPlugin(Http http, Shrinker shrinker) { this(http, shrinker, new AndroidDecoder()); }
+
+    GooglePhotosPlugin(Http http, Shrinker shrinker, Native.Decoder decoder) {
         this.http = http;
         this.sources = new Sources(http, shrinker);
+        this.decoder = decoder;
     }
 
     @Override
@@ -184,8 +193,15 @@ public final class GooglePhotosPlugin implements KioskPlugin {
             host.log("Screensaver state unavailable: " + unavailable.getMessage());
             active = true;
         }
-        // Lists the mode right away. The worker replaces this once photos arrive.
-        publish(Slides.message("Loading photos...", null));
+        // Kiosk Satellite 2026.10.35 and later draw a native view, with no page size limit. Older versions refuse it,
+        // and the plugin falls back to HTML pages. Either way the mode is listed right away under the same key.
+        try {
+            host.publishScreensaverView(KEY, TITLE, new SlideshowView.Factory(screen));
+            nativeMode = true;
+        } catch (UnsupportedOperationException | LinkageError olderHost) {
+            nativeMode = false;
+        }
+        message("Loading photos...", null);
         configure(settings);
     }
 
@@ -301,8 +317,7 @@ public final class GooglePhotosPlugin implements KioskPlugin {
         try {
             if (c.links.isEmpty()) {
                 status("Add a shared album link to start.", false);
-                publish(Slides.message("Shared Album Screensaver",
-                    "Paste a shared album link in Plugin Manager > Shared Album Screensaver."));
+                message("Shared Album Screensaver", "Paste a shared album link in Plugin Manager > Shared Album Screensaver.");
                 resetAlbum();
                 return;
             }
@@ -312,7 +327,7 @@ public final class GooglePhotosPlugin implements KioskPlugin {
             if (changed) load(c);
             else if (System.currentTimeMillis() - loadedAt > c.refreshMs) refresh(c);
             // A different album, or a photo that no longer suits the screen, is replaced right away.
-            if (advance || changed || shown == null || !suits(shown.photo, wanted(c))) showNext(c);
+            if (advance || changed || shown == null || !suits(shown.photo(), wanted(c))) showNext(c);
             else redraw(c);
             failures = 0;
         } catch (IOException | RuntimeException error) {
@@ -320,7 +335,7 @@ public final class GooglePhotosPlugin implements KioskPlugin {
             failures++;
             String message = error.getMessage() == null ? error.toString() : error.getMessage();
             status("Could not update photos: " + message, true);
-            if (shown == null) publish(Slides.message("Could not load photos", message));
+            if (shown == null) message("Could not load photos", message);
             retry = Math.min(30 * MINUTE, MINUTE << Math.min(failures - 1, 5));
         } finally {
             if (!stopped && latest(mine)) {
@@ -341,7 +356,7 @@ public final class GooglePhotosPlugin implements KioskPlugin {
     }
 
     private void load(Config c) throws IOException {
-        if (shown == null) publish(Slides.message("Loading photos...", null));
+        if (shown == null) message("Loading photos...", null);
         List<Album.Photo> all = new ArrayList<>();
         List<String> links = Album.links(c.links);
         IOException firstError = null;
@@ -368,7 +383,7 @@ public final class GooglePhotosPlugin implements KioskPlugin {
     }
 
     private void showNext(Config c) throws IOException {
-        Slides.Image image = null;
+        Slides.Frame image = null;
         Album.Photo photo = null;
         if (prefetched != null && sizing(c).equals(prefetchedSizing) && suits(prefetchedPhoto, wanted(c))) {
             image = prefetched;
@@ -387,7 +402,13 @@ public final class GooglePhotosPlugin implements KioskPlugin {
         }
         if (image == null) throw error != null ? error : new IOException("No photo could be downloaded");
         long now = System.currentTimeMillis();
-        publish(Slides.slide(shown == null ? null : shot(shown, c), (now - shownAt) / 1000.0, shot(image, c), c.style()));
+        if (nativeMode) {
+            Native.Layer previous = shown == null ? null : layer((Native.Picture) shown, shownAt, c);
+            screen.show(Native.Scene.photo(previous, layer((Native.Picture) image, now, c), now, c.style()));
+        } else {
+            publish(Slides.slide(shown == null ? null : shot((Slides.Image) shown, c), (now - shownAt) / 1000.0,
+                shot((Slides.Image) image, c), c.style()));
+        }
         shown = image;
         shownAt = now;
         showing = true;
@@ -397,11 +418,26 @@ public final class GooglePhotosPlugin implements KioskPlugin {
 
     /** Applies display settings to the current photo without moving on. */
     private void redraw(Config c) {
-        publish(Slides.slide(null, (System.currentTimeMillis() - shownAt) / 1000.0, shot(shown, c), c.style()));
+        if (nativeMode) {
+            // The photo keeps its zoom progress. Only the display settings change.
+            screen.show(Native.Scene.photo(null, layer((Native.Picture) shown, shownAt, c), shownAt, c.style()));
+        } else {
+            publish(Slides.slide(null, (System.currentTimeMillis() - shownAt) / 1000.0, shot((Slides.Image) shown, c), c.style()));
+        }
     }
 
     private Slides.Shot shot(Slides.Image image, Config c) {
         return new Slides.Shot(image, fitFor(image.photo, c), caption(image.photo, c));
+    }
+
+    private Native.Layer layer(Native.Picture picture, long start, Config c) {
+        return new Native.Layer(picture, fitFor(picture.photo, c), caption(picture.photo, c), start);
+    }
+
+    /** A setup, loading or error message in place of photos. */
+    private void message(String title, String detail) {
+        if (nativeMode) screen.show(Native.Scene.message(title, detail));
+        else publish(Slides.message(title, detail));
     }
 
     /**
@@ -508,7 +544,7 @@ public final class GooglePhotosPlugin implements KioskPlugin {
      * Downloads a photo sized for this screen. A photo too large for KS's page limit is requested again
      * smaller, or at lower quality when the user chose that. iCloud photos are shrunk on the device instead.
      */
-    private Slides.Image download(Album.Photo photo, Config c) throws IOException {
+    private Slides.Frame download(Album.Photo photo, Config c) throws IOException {
         int[] box = box(c.maxSize);
         int width = box[0], height = box[1];
         if (fitFor(photo, c) == Slides.Fit.FILL && photo.width > 0 && photo.height > 0) {
@@ -516,6 +552,16 @@ public final class GooglePhotosPlugin implements KioskPlugin {
             double scale = Math.min(1, Math.max((double) width / photo.width, (double) height / photo.height));
             width = (int) Math.ceil(photo.width * scale);
             height = (int) Math.ceil(photo.height * scale);
+        }
+        if (nativeMode) {
+            // No page size limit: the service's file is decoded on the device at screen size, in full quality.
+            byte[] bytes = sources.fetch(photo, width, height, 0, true);
+            try {
+                return decoder.decode(bytes, width, height, photo, 20 + random.nextInt(61), 20 + random.nextInt(61));
+            } catch (OutOfMemoryError tooLarge) {
+                // Skipped like a failed download, so one huge photo cannot stop the slideshow.
+                throw new IOException("Not enough memory to show that photo");
+            }
         }
         int budget = Slides.imageBudget(c.crossfade);
         for (double[] attempt : c.reduceQuality ? KEEP_RESOLUTION : KEEP_QUALITY) {
@@ -562,7 +608,9 @@ public final class GooglePhotosPlugin implements KioskPlugin {
         prefetchedSizing = null;
     }
 
+    /** Publishes an HTML page. Never used in native mode, where a page would replace the native renderer. */
     private void publish(String html) {
+        if (nativeMode) return;
         PluginHost h = host;
         if (h == null || stopped || html.equals(lastDocument)) return;
         if (Slides.utf8Length(html) > Slides.MAX_DOCUMENT_BYTES) throw new IllegalStateException("Slide exceeds the screensaver size limit");

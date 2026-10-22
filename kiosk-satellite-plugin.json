@@ -76,7 +76,7 @@
         "Cut"
       ],
       "group": "Timing",
-      "description": "Cut sends one photo to the screen at a time, which leaves room for larger, sharper photos."
+      "description": "Crossfade blends each photo into the next. Cut switches straight away."
     },
     {
       "key": "fadeSeconds",
@@ -200,7 +200,7 @@
         "2560 px"
       ],
       "group": "Display",
-      "description": "Photos download at your screen size up to this limit on the long side."
+      "description": "Photos download at your screen size up to this limit on the long side. Choose 2560 px for a large, sharp screen."
     },
     {
       "key": "oversize",
@@ -212,7 +212,7 @@
         "Reduce quality (keep resolution)"
       ],
       "group": "Display",
-      "description": "Kiosk Satellite limits a screensaver page to 512 KB, and a crossfade holds two photos. Detailed photos that do not fit are requested again smaller or with stronger compression. Cut transition makes this rare."
+      "description": "Only for Kiosk Satellite versions before 2026.10.35, whose plugin screensavers are web pages limited to 512 KB. Newer versions show every photo at full quality and ignore this setting. Cut transition also makes it rare."
     }
   ],
   "commands": [

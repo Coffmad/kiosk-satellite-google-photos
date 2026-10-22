@@ -110,15 +110,24 @@ final class Sources {
      * the device shrinks the photo. Otherwise it is the JPEG quality, 1 to 100.
      */
     byte[] fetch(Album.Photo photo, int width, int height, int quality) throws IOException {
+        return fetch(photo, width, height, quality, false);
+    }
+
+    /**
+     * As above. Raw skips the device's own shrinking and compression, for the native screensaver, which decodes the
+     * service's file itself, so the photo may be larger than width x height.
+     */
+    byte[] fetch(Album.Photo photo, int width, int height, int quality, boolean raw) throws IOException {
         try {
             switch (photo.source) {
                 case ICLOUD:
+                    if (raw) return iCloud.original(photo);
                     return iCloud.fetch(photo, width, height, quality > 0 ? quality : DEVICE_QUALITY);
                 case ONEDRIVE:
                 case AMAZON: {
                     // Sized by the service. Lower quality is applied on the device, since neither offers it.
                     byte[] sized = cache(photo.id + "|" + width + "x" + height, photo, width, height);
-                    return quality > 0 ? shrinker.shrink(sized, width, height, quality) : sized;
+                    return quality > 0 && !raw ? shrinker.shrink(sized, width, height, quality) : sized;
                 }
                 case NEXTCLOUD:
                 case DROPBOX:
@@ -127,7 +136,7 @@ final class Sources {
                     // Fixed sizes from the service, shrunk to the screen on the device. The first, largest request is kept
                     // while smaller sizes are tried.
                     byte[] original = cache(photo.id, photo, width, height);
-                    return shrinker.shrink(original, width, height, quality > 0 ? quality : DEVICE_QUALITY);
+                    return raw ? original : shrinker.shrink(original, width, height, quality > 0 ? quality : DEVICE_QUALITY);
                 }
                 default: {
                     Http.Response response = http.request(Album.sized(photo, width, height, quality), null, MAX_IMAGE_BYTES);
